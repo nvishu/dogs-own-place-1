@@ -8,6 +8,33 @@ import DogLogo from '@/components/ui/DogLogo'
 
 const STEPS = ['Account Info', 'Personal Details', 'All Set!']
 
+// Defined OUTSIDE RegisterPage on purpose: a component declared inside another component is a brand-new
+// component on every render, which made inputs lose focus after each keystroke.
+function Field({ icon: Icon, label, name, type = 'text', placeholder, value, error, onChange, autoComplete, inputMode, toggle }) {
+  return (
+    <div>
+      <label htmlFor={`reg-${name}`} className="text-sm font-semibold text-brand-dark mb-1.5 block">{label}</label>
+      <div className="relative">
+        {Icon && <Icon size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />}
+        <input
+          id={`reg-${name}`} name={name} type={type} placeholder={placeholder} value={value}
+          autoComplete={autoComplete} inputMode={inputMode}
+          onChange={(e) => onChange(name, e.target.value)}
+          aria-invalid={!!error}
+          className={`input-field ${Icon ? 'pl-11' : ''} ${toggle ? 'pr-11' : ''} ${error ? 'border-red-400 ring-1 ring-red-200' : ''}`}
+        />
+        {toggle && (
+          <button type="button" onClick={toggle.onClick} aria-label={toggle.show ? 'Hide password' : 'Show password'}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-primary">
+            {toggle.show ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
+        )}
+      </div>
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  )
+}
+
 export default function RegisterPage() {
   const router = useRouter()
   const [step, setStep] = useState(0)
@@ -20,19 +47,20 @@ export default function RegisterPage() {
   })
   const [errors, setErrors] = useState({})
 
+  const fp = (name) => ({ name, value: form[name], error: errors[name], onChange: set })
   const set = (k, v) => { setForm(f => ({...f,[k]:v})); setErrors(e => ({...e,[k]:''})) }
 
   const validate0 = () => {
     const e = {}
     if (!form.name.trim()) e.name = 'Full name is required'
-    if (!form.email.includes('@')) e.email = 'Valid email required'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) e.email = 'Valid email required'
     if (form.password.length < 8) e.password = 'Min 8 characters'
     if (form.password !== form.confirm) e.confirm = 'Passwords do not match'
     setErrors(e); return Object.keys(e).length === 0
   }
   const validate1 = () => {
     const e = {}
-    if (!form.phone.match(/^\d{10}$/)) e.phone = 'Valid 10-digit phone required'
+    if (!form.phone.replace(/[\s-]/g, '').match(/^\d{10}$/)) e.phone = 'Valid 10-digit phone required'
     if (!form.city.trim()) e.city = 'City is required'
     setErrors(e); return Object.keys(e).length === 0
   }
@@ -47,8 +75,8 @@ export default function RegisterPage() {
     setServerError('')
     try {
       await apiRegister({
-        name: form.name, email: form.email, password: form.password,
-        phone: form.phone, city: form.city, address: form.address,
+        name: form.name, email: form.email.trim(), password: form.password,
+        phone: form.phone.replace(/[\s-]/g, ''), city: form.city, address: form.address,
       })
       setStep(2)
     } catch (err) {
@@ -57,25 +85,6 @@ export default function RegisterPage() {
       setLoading(false)
     }
   }
-
-  const Field = ({ icon: Icon, label, name, type='text', placeholder }) => (
-    <div>
-      <label className="text-sm font-semibold text-brand-dark mb-1.5 block">{label}</label>
-      <div className="relative">
-        {Icon && <Icon size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>}
-        <input type={type} placeholder={placeholder} value={form[name]}
-          onChange={e => set(name, e.target.value)}
-          className={`input-field ${Icon?'pl-11':''} ${errors[name]?'border-red-400 ring-1 ring-red-200':''}`} />
-        {name==='password' && (
-          <button type="button" onClick={() => setShow(!show)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-            {show ? <EyeOff size={17}/> : <Eye size={17}/>}
-          </button>
-        )}
-      </div>
-      {errors[name] && <p className="text-red-500 text-xs mt-1">{errors[name]}</p>}
-    </div>
-  )
 
   return (
     <div className="min-h-screen bg-brand-cream flex">
@@ -153,18 +162,18 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              <div className="space-y-4">
+              <form className="space-y-4" noValidate onSubmit={(e) => { e.preventDefault(); if (!loading) next() }}>
                 {step === 0 ? (
                   <>
-                    <Field icon={User} label="Full Name" name="name" placeholder="Priya Sharma" />
-                    <Field icon={Mail} label="Email Address" name="email" type="email" placeholder="priya@example.com" />
-                    <Field icon={Lock} label="Password" name="password" type={show?'text':'password'} placeholder="Min 8 characters" />
-                    <Field icon={Lock} label="Confirm Password" name="confirm" type="password" placeholder="Repeat password" />
+                    <Field {...fp('name')} icon={User} label="Full Name" placeholder="Priya Sharma" autoComplete="name" />
+                    <Field {...fp('email')} icon={Mail} label="Email Address" type="email" placeholder="priya@example.com" autoComplete="email" />
+                    <Field {...fp('password')} icon={Lock} label="Password" type={show ? 'text' : 'password'} placeholder="Min 8 characters" autoComplete="new-password" toggle={{ show, onClick: () => setShow(!show) }} />
+                    <Field {...fp('confirm')} icon={Lock} label="Confirm Password" type={show ? 'text' : 'password'} placeholder="Repeat password" autoComplete="new-password" />
                   </>
                 ) : (
                   <>
-                    <Field icon={Phone} label="Mobile Number" name="phone" placeholder="10-digit number" />
-                    <Field icon={MapPin} label="City" name="city" placeholder="Mumbai, Delhi, Bangalore..." />
+                    <Field {...fp('phone')} icon={Phone} label="Mobile Number" type="tel" inputMode="numeric" placeholder="10-digit number" autoComplete="tel" />
+                    <Field {...fp('city')} icon={MapPin} label="City" placeholder="Mumbai, Delhi, Bangalore..." autoComplete="address-level2" />
                     <div>
                       <label className="text-sm font-semibold text-brand-dark mb-1.5 block">Address (Optional)</label>
                       <textarea value={form.address} onChange={e => set('address', e.target.value)}
@@ -174,7 +183,7 @@ export default function RegisterPage() {
                   </>
                 )}
 
-                <button onClick={next} disabled={loading}
+                <button type="submit" disabled={loading} aria-busy={loading}
                   className="btn-primary w-full justify-center py-4 text-base disabled:opacity-60">
                   {loading
                     ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>Creating account...</span>
@@ -182,11 +191,11 @@ export default function RegisterPage() {
                 </button>
 
                 {step === 1 && (
-                  <button onClick={() => setStep(0)} className="w-full text-center text-sm text-gray-500 hover:text-brand-primary py-2">
+                  <button type="button" onClick={() => setStep(0)} className="w-full text-center text-sm text-gray-500 hover:text-brand-primary py-2">
                     ← Back
                   </button>
                 )}
-              </div>
+              </form>
 
               <p className="text-center text-gray-500 mt-6 text-sm">
                 Already have an account?{' '}
