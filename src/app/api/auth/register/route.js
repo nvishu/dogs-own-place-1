@@ -56,6 +56,7 @@ export async function POST(request) {
     )
   } catch (error) {
     console.error('Register error:', error)
-    return NextResponse.json({ error: 'Server error. Please try again.' }, { status: 500 })
+    const msg = process.env.NODE_ENV !== 'production' ? `Server error: ${error.message}` : 'Server error. Please try again.'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
